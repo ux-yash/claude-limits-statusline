@@ -113,6 +113,7 @@ test('installer: install, update, print, uninstall', () => {
   run();
   assert.match(settings().statusLine.command, /limits-statusline\.js/);
   assert.strictEqual(settings().statusLine.padding, 1);
+  assert.strictEqual(settings().statusLine.refreshInterval, 30);
   assert.strictEqual(settings().theme, 'dark');
   run(); // an update must keep the original status line, not save itself
   const config = path.join(hooks, 'limits-statusline.json');
@@ -132,6 +133,7 @@ test('installer: install, update, print, uninstall', () => {
 
   run('--uninstall');
   assert.strictEqual(settings().statusLine.command, 'echo old');
+  assert.strictEqual(settings().statusLine.refreshInterval, undefined);
   assert.deepStrictEqual(fs.readdirSync(hooks), []);
   fs.rmSync(dir, { recursive: true });
 });

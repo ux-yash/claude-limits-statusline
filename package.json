@@ -1,6 +1,6 @@
 {
   "name": "claude-limits-statusline",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "See how much of your Claude plan you've used, right in the Claude Code status line.",
   "author": "Yash (https://yash.bio)",
   "homepage": "https://github.com/ux-yash/claude-limits-statusline#readme",

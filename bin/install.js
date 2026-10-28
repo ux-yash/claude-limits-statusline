@@ -24,6 +24,7 @@ if (fs.existsSync(settingsPath)) {
   }
   fs.copyFileSync(settingsPath, settingsPath + '.bak');
 }
+const REFRESH = 30;
 const save = () => fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 const current = settings.statusLine?.command;
 const installed = typeof current === 'string' && current.includes('limits-statusline.js');
@@ -38,7 +39,9 @@ if (installed) {
 
 if (process.argv.includes('--uninstall')) {
   if (installed) {
-    if (previous) settings.statusLine = { ...settings.statusLine, type: 'command', command: previous };
+    const { refreshInterval, ...rest } = settings.statusLine;
+    // keep a refresh interval only if it isn't the one we set
+    if (previous) settings.statusLine = { ...rest, ...(refreshInterval !== REFRESH && { refreshInterval }), type: 'command', command: previous };
     else delete settings.statusLine;
     save();
   }
@@ -64,7 +67,8 @@ _claude_limits_precmd() {
 add-zsh-hook precmd _claude_limits_precmd
 [[ $RPROMPT == *_claude_limits* ]] || RPROMPT='\${_claude_limits}'"\${RPROMPT:+ $RPROMPT}"
 `);
-settings.statusLine = { ...settings.statusLine, type: 'command', command: run };
+// re-run every 30s so countdowns and readings from other sessions stay current while idle
+settings.statusLine = { refreshInterval: REFRESH, ...settings.statusLine, type: 'command', command: run };
 save();
 
 console.log(installed ? `Updated claude-limits-statusline to ${version}.` : `Installed claude-limits-statusline ${version}.`);
