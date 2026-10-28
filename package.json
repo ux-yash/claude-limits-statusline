@@ -1,0 +1,26 @@
+{
+  "name": "claude-limits-statusline",
+  "version": "1.4.0",
+  "description": "See your Claude 5-hour and weekly usage limits in the Claude Code status line. Wraps the status line you already have.",
+  "bin": {
+    "claude-limits-statusline": "bin/install.js"
+  },
+  "files": [
+    "bin",
+    "statusline.js"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "statusline",
+    "usage",
+    "rate-limits"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
