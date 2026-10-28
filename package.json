@@ -1,7 +1,7 @@
 {
   "name": "claude-limits-statusline",
-  "version": "1.4.0",
-  "description": "See your Claude 5-hour and weekly usage limits in the Claude Code status line. Wraps the status line you already have.",
+  "version": "2.0.0",
+  "description": "See your Claude 5-hour and weekly usage limits in the Claude Code status line.",
   "bin": {
     "claude-limits-statusline": "bin/install.js"
   },

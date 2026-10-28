@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Claude Code status line: appends 5-hour and weekly plan usage to whatever status line you already had.
+// Claude Code status line: model, folder, context, and your 5-hour and weekly plan usage.
 // `--print zsh|tmux|plain` prints the last known usage instead, for a shell prompt or tmux bar.
-const { execSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -153,13 +153,6 @@ async function checkUpdate(file) {
   } catch (e) {}
 }
 
-// GSD draws 10-block bars: swap them for our level bars, and give its context bar a separator and label
-function tweakGsd(out) {
-  return out
-    .replace(/[█░]{10}/g, b => level((b.match(/█/g) || []).length * 10))
-    .replace(/(\x1b\[[0-9;]*m)((?:💀 )?[▁▂▃▄▅▆▇█])/, `│ ${ansi(DIM, 'ctx')} $1$2`);
-}
-
 function ownLine(data) {
   const parts = [ansi(DIM, data.model?.display_name || 'Claude'), ansi(DIM, path.basename(data.workspace?.current_dir || process.cwd()))];
   const used = data.context_window?.used_percentage;
@@ -167,17 +160,10 @@ function ownLine(data) {
   return parts.join(' │ ');
 }
 
-function render(raw, { wrap = null, now = Date.now(), dir = null, version = null, send = notify, check = spawnCheck } = {}) {
+function render(raw, { now = Date.now(), dir = null, version = null, send = notify, check = spawnCheck } = {}) {
   let data = {};
   try { data = JSON.parse(raw); } catch (e) {}
-  let base;
-  if (wrap) {
-    try { base = execSync(wrap, { input: raw, timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'] }).toString().replace(/\n+$/, ''); } catch (e) { base = ''; }
-    if (/gsd-statusline/.test(wrap)) base = tweakGsd(base);
-  } else {
-    base = ownLine(data);
-  }
-
+  const base = ownLine(data);
   const live = data.rate_limits;
   let windows = merge(live, null, now / 1000);
   let hint = '';
@@ -198,7 +184,7 @@ function render(raw, { wrap = null, now = Date.now(), dir = null, version = null
   return [base, text && `\x1b]8;;${USAGE_URL}\x07${text}\x1b]8;;\x07`, hint && ansi(DIM, hint)].filter(Boolean).join(' │ ');
 }
 
-module.exports = { usageText, merge, tweakGsd, ownLine, render, updateHint, newer, FORMATS };
+module.exports = { usageText, merge, ownLine, render, updateHint, newer, FORMATS };
 
 if (require.main === module) {
   const [mode, format] = process.argv.slice(2);
@@ -208,9 +194,9 @@ if (require.main === module) {
   } else if (mode === '--check-update') {
     checkUpdate(path.join(__dirname, UPDATE));
   } else {
-    const { wrap = null, version = null } = readJSON(path.join(__dirname, CONFIG)) || {};
+    const { version = null } = readJSON(path.join(__dirname, CONFIG)) || {};
     let raw = '';
     process.stdin.on('data', c => (raw += c));
-    process.stdin.on('end', () => process.stdout.write(render(raw, { wrap, dir: __dirname, version })));
+    process.stdin.on('end', () => process.stdout.write(render(raw, { dir: __dirname, version })));
   }
 }

@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { usageText, merge, tweakGsd, render, updateHint, newer, FORMATS } = require('../statusline.js');
+const { usageText, merge, render, updateHint, newer, FORMATS } = require('../statusline.js');
 
 const plain = s => s.replace(/\x1b\[[0-9;]*m/g, '').replace(/\x1b\]8;;[^\x07]*\x07/g, '');
 const now = 1_000_000_000_000;
@@ -51,18 +51,19 @@ test('merge keeps the newest reading', () => {
 
 test('a session with no reading yet shows the last one, dimmed', () => {
   const dir = tmp();
-  render(JSON.stringify({ rate_limits: five(30, 200) }), { dir, now, wrap: 'echo base' });
-  const out = render('{}', { dir, now, wrap: 'echo base' });
-  assert.strictEqual(plain(out), 'base │ 5h ▃ 30%');
+  const session = { model: { display_name: 'Opus' }, workspace: { current_dir: '/x/proj' } };
+  render(JSON.stringify({ ...session, rate_limits: five(30, 200) }), { dir, now });
+  const out = render(JSON.stringify(session), { dir, now });
+  assert.strictEqual(plain(out), 'Opus │ proj │ 5h ▃ 30%');
   assert.doesNotMatch(out, /\x1b\[3\d/);
   // a session holding an older, lower reading shows the newer one
-  assert.strictEqual(plain(render(JSON.stringify({ rate_limits: five(20, 200) }), { dir, now, wrap: 'echo base' })), 'base │ 5h ▃ 30%');
+  assert.strictEqual(plain(render(JSON.stringify({ ...session, rate_limits: five(20, 200) }), { dir, now })), 'Opus │ proj │ 5h ▃ 30%');
   fs.rmSync(dir, { recursive: true });
 });
 
 test('alerts once per threshold per window', () => {
   const dir = tmp(), sent = [];
-  const run = (used, mins) => render(JSON.stringify({ rate_limits: five(used, mins) }), { dir, now, wrap: 'true', send: t => sent.push(t) });
+  const run = (used, mins) => render(JSON.stringify({ rate_limits: five(used, mins) }), { dir, now, send: t => sent.push(t) });
   run(70, 100); run(82, 100); run(85, 100); run(96, 100);
   run(81, 400); // next window
   assert.deepStrictEqual(sent, ['Claude 5-hour limit at 82%', 'Claude 5-hour limit at 96%', 'Claude 5-hour limit at 81%']);
@@ -91,19 +92,14 @@ test('update check runs daily and hints at newer versions', () => {
   fs.rmSync(dir, { recursive: true });
 });
 
-test('GSD bars become level bars; its context bar gets a separator and label', () => {
-  const gsd = '\x1b[2mv2.0 [██████░░░░] 60%\x1b[0m │ \x1b[2mdir\x1b[0m \x1b[32m███░░░░░░░ 36%\x1b[0m';
-  assert.strictEqual(plain(tweakGsd(gsd)), 'v2.0 [▅] 60% │ dir │ ctx ▃ 36%');
-});
-
-test('own line when there is nothing to wrap', () => {
+test('model, folder and context bar', () => {
   const raw = JSON.stringify({ model: { display_name: 'Opus' }, workspace: { current_dir: '/x/proj' }, context_window: { used_percentage: 30 } });
   assert.strictEqual(plain(render(raw, { now })), 'Opus │ proj │ ctx ▃ 30%');
 });
 
-test('wraps an existing status line and links the usage', () => {
-  const out = render(JSON.stringify({ rate_limits: five(20) }), { now, wrap: 'echo mine' });
-  assert.strictEqual(plain(out), 'mine │ 5h ▂ 20%');
+test('links the usage to claude.ai', () => {
+  const out = render(JSON.stringify({ model: { display_name: 'Opus' }, workspace: { current_dir: '/x/proj' }, rate_limits: five(20) }), { now });
+  assert.strictEqual(plain(out), 'Opus │ proj │ 5h ▂ 20%');
   assert.ok(out.includes('\x1b]8;;https://claude.ai/settings/usage\x07'));
 });
 
@@ -118,16 +114,21 @@ test('installer: install, update, print, uninstall', () => {
   assert.match(settings().statusLine.command, /limits-statusline\.js/);
   assert.strictEqual(settings().statusLine.padding, 1);
   assert.strictEqual(settings().theme, 'dark');
-  run(); // update must not wrap itself
-  const cfg = JSON.parse(fs.readFileSync(path.join(hooks, 'limits-statusline.json'), 'utf8'));
-  assert.deepStrictEqual(cfg, { wrap: 'echo old', version: require('../package.json').version });
+  run(); // an update must keep the original status line, not save itself
+  const config = path.join(hooks, 'limits-statusline.json');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(config, 'utf8')), { previous: 'echo old', version: require('../package.json').version });
   assert.ok(fs.existsSync(path.join(hooks, 'limits-statusline.zsh')));
 
   fs.writeFileSync(path.join(hooks, 'limits-statusline-update.json'), JSON.stringify({ checked_at: Date.now() })); // no network in tests
-  const out = execFileSync('sh', ['-c', settings().statusLine.command], { input: JSON.stringify({ rate_limits: five(20) }), env }).toString();
-  assert.strictEqual(plain(out), 'old │ 5h ▂ 20%');
+  const input = JSON.stringify({ model: { display_name: 'Opus' }, workspace: { current_dir: '/x/proj' }, rate_limits: five(20) });
+  const out = execFileSync('sh', ['-c', settings().statusLine.command], { input, env }).toString();
+  assert.strictEqual(plain(out), 'Opus │ proj │ 5h ▂ 20%');
   const printed = execFileSync('sh', ['-c', `${settings().statusLine.command} --print plain`], { env }).toString();
   assert.strictEqual(printed, '5h ▂ 20%');
+
+  fs.writeFileSync(config, JSON.stringify({ wrap: 'echo old', version: '1.4.0' })); // what 1.x saved
+  run();
+  assert.strictEqual(JSON.parse(fs.readFileSync(config, 'utf8')).previous, 'echo old');
 
   run('--uninstall');
   assert.strictEqual(settings().statusLine.command, 'echo old');

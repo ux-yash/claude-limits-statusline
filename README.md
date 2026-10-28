@@ -20,7 +20,7 @@ Opus │ my-project │ ctx ▃ 36% │ 5h ▅ 52% 4h 7d ▃ 35% │ 🚶 steady
 npx claude-limits-statusline
 ```
 
-If you already have a status line (GSD or your own), it stays, and your usage is added at the end. Run the same command again to update. The status line tells you when a new version is out.
+This replaces any status line you already have; uninstalling puts it back. Run the same command again to update. The status line tells you when a new version is out.
 
 Usage appears on Pro and Max plans. API-key users only see the context bar.
 

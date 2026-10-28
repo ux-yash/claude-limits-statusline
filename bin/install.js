@@ -27,19 +27,23 @@ if (fs.existsSync(settingsPath)) {
 const save = () => fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 const current = settings.statusLine?.command;
 const installed = typeof current === 'string' && current.includes('limits-statusline.js');
-let wrap = current || null;
+// the status line you had before the first install, put back on uninstall
+let previous = current || null;
 if (installed) {
-  try { wrap = JSON.parse(fs.readFileSync(config, 'utf8')).wrap; } catch (e) { wrap = null; }
+  try {
+    const cfg = JSON.parse(fs.readFileSync(config, 'utf8'));
+    previous = cfg.previous ?? cfg.wrap ?? null; // 1.x saved it as `wrap`
+  } catch (e) { previous = null; }
 }
 
 if (process.argv.includes('--uninstall')) {
   if (installed) {
-    if (wrap) settings.statusLine = { ...settings.statusLine, type: 'command', command: wrap };
+    if (previous) settings.statusLine = { ...settings.statusLine, type: 'command', command: previous };
     else delete settings.statusLine;
     save();
   }
   for (const f of [script, config, zsh, ...state]) fs.rmSync(f, { force: true });
-  console.log(wrap ? `Restored your previous status line: ${wrap}` : 'Removed the limits status line.');
+  console.log(previous ? `Restored your previous status line: ${previous}` : 'Removed the limits status line.');
   console.log('If you added the limits-statusline line to ~/.zshrc or ~/.tmux.conf, you can delete it.');
   process.exit(0);
 }
@@ -47,8 +51,7 @@ if (process.argv.includes('--uninstall')) {
 const run = `"${process.execPath}" "${script}"`;
 fs.mkdirSync(hooks, { recursive: true });
 fs.copyFileSync(path.join(__dirname, '..', 'statusline.js'), script);
-// on update, keep the status line we wrapped the first time
-fs.writeFileSync(config, JSON.stringify({ wrap, version }, null, 2) + '\n');
+fs.writeFileSync(config, JSON.stringify({ previous, version }, null, 2) + '\n');
 fs.writeFileSync(zsh, `# Claude usage in your right-hand prompt, from claude-limits-statusline.
 zmodload zsh/datetime
 autoload -Uz add-zsh-hook
@@ -65,7 +68,7 @@ settings.statusLine = { ...settings.statusLine, type: 'command', command: run };
 save();
 
 console.log(installed ? `Updated claude-limits-statusline to ${version}.` : `Installed claude-limits-statusline ${version}.`);
-if (!installed && current) console.log(`Wrapping your existing status line: ${current}`);
+if (!installed && current) console.log(`It replaces your previous status line, which --uninstall puts back: ${current}`);
 console.log('It shows up on the next status line refresh. Usage appears for Pro/Max plans after the first reply in a session.');
 console.log(`\nTo see usage in your zsh prompt too, add this line to ~/.zshrc:\n  [ -f "${zsh}" ] && source "${zsh}"`);
 console.log(`Or in tmux, add this line to ~/.tmux.conf:\n  set -ga status-right ' #(${run} --print tmux)'`);
