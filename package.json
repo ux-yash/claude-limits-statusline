@@ -1,7 +1,8 @@
 {
   "name": "claude-limits-statusline",
-  "version": "2.0.1",
-  "description": "See your Claude 5-hour and weekly usage limits in the Claude Code status line.",
+  "version": "2.0.2",
+  "description": "See how much of your Claude plan you've used, right in the Claude Code status line.",
+  "author": "Yash (https://yash.bio)",
   "homepage": "https://github.com/ux-yash/claude-limits-statusline#readme",
   "repository": {
     "type": "git",
