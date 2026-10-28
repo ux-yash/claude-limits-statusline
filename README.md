@@ -40,7 +40,7 @@ You need Node.js 18 or later and a Claude Pro or Max plan.
 npx claude-limits-statusline
 ```
 
-It appears the next time Claude Code refreshes its status line. Your current status line is saved, and uninstalling puts it back. To update, run the same command again; the status line tells you when a new version is out.
+It appears the next time Claude Code refreshes its status line, and refreshes itself every 30 seconds after that. Your current status line is saved, and uninstalling puts it back. To update, run the same command again; the status line tells you when a new version is out.
 
 Using an API key instead of a plan? You'll only see the context bar, because Claude Code shares usage limits only for Pro and Max plans.
 

@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { usageText, merge, render, updateHint, newer, FORMATS } = require('../statusline.js');
+const { paceLevel, usageText, merge, render, updateHint, newer, FORMATS } = require('../statusline.js');
 
 const plain = s => s.replace(/\x1b\[[0-9;]*m/g, '').replace(/\x1b\]8;;[^\x07]*\x07/g, '');
 const now = 1_000_000_000_000;
@@ -135,5 +135,25 @@ test('installer: install, update, print, uninstall', () => {
   assert.strictEqual(settings().statusLine.command, 'echo old');
   assert.strictEqual(settings().statusLine.refreshInterval, undefined);
   assert.deepStrictEqual(fs.readdirSync(hooks), []);
+  fs.rmSync(dir, { recursive: true });
+});
+
+test('pace sticks near a boundary instead of flickering', () => {
+  assert.strictEqual(paceLevel(86, null), 1); // fast
+  assert.strictEqual(paceLevel(84, 1), 1); // just under 85: stays fast
+  assert.strictEqual(paceLevel(81, 1), 2); // 3+ points under: steady
+  assert.strictEqual(paceLevel(87, 2), 2); // just over 85: stays steady
+  assert.strictEqual(paceLevel(88, 2), 1); // 3+ points over: fast
+  assert.strictEqual(paceLevel(101, 2), 0); // a big jump moves straight there
+});
+
+test('render remembers the pace level between runs', () => {
+  const dir = tmp();
+  const raw = JSON.stringify({ rate_limits: { seven_day: { used_percentage: 43, resets_at: at(84 * 60) } } });
+  // no new usage while time passes, so the projected end drifts down
+  const pace = hours => plain(render(raw, { dir, now: now + hours * 3600e3 })).split(' │ ').pop();
+  assert.strictEqual(pace(0), '🏃 fast'); // ends at 86
+  assert.strictEqual(pace(2), '🏃 fast'); // ends at 84, within the buffer
+  assert.strictEqual(pace(6), '🚶 steady'); // ends at 80
   fs.rmSync(dir, { recursive: true });
 });

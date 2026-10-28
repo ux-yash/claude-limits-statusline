@@ -62,21 +62,31 @@ function assess(w, seconds, nowSec) {
 // weekly pace, by where the week ends up at your average rate so far
 const PACE = [[100, '🔥', 'too fast', RED], [85, '🏃', 'fast', YELLOW], [50, '🚶', 'steady', DIM], [0, '🐢', 'slow', DIM]];
 
-function paceText(w, now, paint, stale) {
+const BUFFER = 3;
+
+// keep the previous level until the week moves BUFFER points past its edge, so it doesn't flicker
+function paceLevel(end, prev) {
+  const i = PACE.findIndex(([min]) => end >= min);
+  if (prev == null || prev === i || !PACE[prev]) return i;
+  const lo = PACE[prev][0] - BUFFER, hi = prev ? PACE[prev - 1][0] + BUFFER : Infinity;
+  return end >= lo && end < hi ? prev : i;
+}
+
+function paceText(w, now, paint, stale, prev) {
   const a = assess(w, WEEK, now / 1000);
   if (a.end == null) return '';
-  const [, icon, word, color] = PACE.find(([min]) => a.end >= min);
+  const [, icon, word, color] = PACE[paceLevel(a.end, prev)];
   return `${icon} ${paint(stale ? DIM : color, a.outIn != null ? `${word}, out in ${dur(a.outIn)}` : word)}`;
 }
 
-function usageText(windows, now, paint = ansi, stale = false) {
+function usageText(windows, now, paint = ansi, stale = false, prevPace = null) {
   if (!windows) return '';
   const meters = WINDOWS.filter(win => windows[win.key]).map(win => {
     const a = assess(windows[win.key], win.seconds, now / 1000);
     const reset = a.left != null && a.pct >= 50 ? paint(DIM, ` ${dur(a.left)}`) : '';
     return meter(paint, win.label, a.pct, stale ? DIM : rawColor(a.pct)) + reset;
   }).join(' ');
-  const pace = windows.seven_day ? paceText(windows.seven_day, now, paint, stale) : '';
+  const pace = windows.seven_day ? paceText(windows.seven_day, now, paint, stale, prevPace) : '';
   return [meters, pace].filter(Boolean).join(' │ ');
 }
 
@@ -167,6 +177,7 @@ function render(raw, { now = Date.now(), dir = null, version = null, send = noti
   const live = data.rate_limits;
   let windows = merge(live, null, now / 1000);
   let hint = '';
+  let pace = null;
   if (dir) {
     // share readings across sessions, so a new session shows usage before its first reply
     const file = path.join(dir, CACHE);
@@ -175,22 +186,25 @@ function render(raw, { now = Date.now(), dir = null, version = null, send = noti
     cache.windows = merge(live, cache.windows, now / 1000);
     cache.alerted = cache.alerted || {};
     if (live && cache.windows) alerts(cache.windows, cache.alerted, now / 1000, send);
+    const week = cache.windows && cache.windows.seven_day && assess(cache.windows.seven_day, WEEK, now / 1000);
+    if (week && week.end != null) cache.pace = paceLevel(week.end, cache.pace);
     if (cache.windows && JSON.stringify(cache) !== before) writeJSON(file, cache);
     windows = cache.windows;
+    pace = cache.pace ?? null;
     hint = updateHint(path.join(dir, UPDATE), version, now, check);
   }
   // dim until this session hears back itself
-  const text = usageText(windows, now, ansi, !live);
+  const text = usageText(windows, now, ansi, !live, pace);
   return [base, text && `\x1b]8;;${USAGE_URL}\x07${text}\x1b]8;;\x07`, hint && ansi(DIM, hint)].filter(Boolean).join(' │ ');
 }
 
-module.exports = { usageText, merge, ownLine, render, updateHint, newer, FORMATS };
+module.exports = { paceLevel, usageText, merge, ownLine, render, updateHint, newer, FORMATS };
 
 if (require.main === module) {
   const [mode, format] = process.argv.slice(2);
   if (mode === '--print') {
     const cache = readJSON(path.join(__dirname, CACHE)) || {};
-    process.stdout.write(usageText(merge(null, cache.windows, Date.now() / 1000), Date.now(), FORMATS[format] || ansi));
+    process.stdout.write(usageText(merge(null, cache.windows, Date.now() / 1000), Date.now(), FORMATS[format] || ansi, false, cache.pace));
   } else if (mode === '--check-update') {
     checkUpdate(path.join(__dirname, UPDATE));
   } else {
